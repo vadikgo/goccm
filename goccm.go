@@ -1,6 +1,9 @@
 package goccm
 
-import "sync/atomic"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 type (
 	// ConcurrencyManager Interface
@@ -39,6 +42,9 @@ type (
 
 		// The running count allows we know the number of goroutines are running
 		runningCount int32
+
+		// Thread safe mutex
+		mux sync.Mutex
 	}
 )
 
@@ -75,9 +81,12 @@ func (c *concurrencyManager) controller() {
 
 		// When the closed flag is set,
 		// we need to close the manager if it doesn't have any running goroutine
+		c.mux.Lock()
 		if c.closed == true && c.runningCount == 0 {
+			c.mux.Unlock()
 			break
 		}
+		c.mux.Unlock()
 	}
 
 	// Say that all goroutines are finished, we can close the manager
@@ -94,18 +103,24 @@ func (c *concurrencyManager) Wait() {
 	<-c.managerCh
 
 	// Increase the running count to help we know how many goroutines are running.
+	c.mux.Lock()
 	atomic.AddInt32(&c.runningCount, 1)
+	c.mux.Unlock()
 }
 
 // Mark a goroutine as finished
 func (c *concurrencyManager) Done() {
 	// Decrease the number of running count
+	c.mux.Lock()
 	atomic.AddInt32(&c.runningCount, -1)
+	c.mux.Unlock()
 	c.doneCh <- true
 }
 
 // Close the manager manually
 func (c *concurrencyManager) Close() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	c.closed = true
 }
 
@@ -120,5 +135,7 @@ func (c *concurrencyManager) WaitAllDone() {
 
 // Returns the number of goroutines which are running
 func (c *concurrencyManager) RunningCount() int32 {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	return c.runningCount
 }
