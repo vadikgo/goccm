@@ -100,20 +100,20 @@ func (c *concurrencyManager) Wait() {
 	// Try to receive from the manager channel. When we have something,
 	// it means a slot is available and we can start a new goroutine.
 	// Otherwise, it will block until a slot is available.
-	c.mux.Lock()
-	defer c.mux.Unlock()
 	<-c.managerCh
 
 	// Increase the running count to help we know how many goroutines are running.
+	c.mux.Lock()
 	atomic.AddInt32(&c.runningCount, 1)
+	c.mux.Unlock()
 }
 
 // Mark a goroutine as finished
 func (c *concurrencyManager) Done() {
 	// Decrease the number of running count
 	c.mux.Lock()
-	defer c.mux.Unlock()
 	atomic.AddInt32(&c.runningCount, -1)
+	c.mux.Unlock()
 	c.doneCh <- true
 }
 
